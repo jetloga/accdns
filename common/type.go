@@ -1,10 +1,5 @@
 package common
 
-import (
-	"net"
-	"sync"
-)
-
 type ConfigStruct struct {
 	Service  *ServiceConfig
 	Upstream *UpstreamConfig
@@ -19,8 +14,6 @@ type ServiceConfig struct {
 }
 
 type UpstreamConfig struct {
-	UseUDP               bool     `comment:"Use UDP Protocol to Access Upstream"`
-	UseTCP               bool     `comment:"Use TCP Protocol to Access Upstream"`
 	DefaultUpstreams     []string `comment:"Upstream List for Non-specific Record (Example: 223.5.5.5:53,223.6.6.6:53,[2001:da8::666]:53)"`
 	ARecordUpstreams     []string `comment:"Upstream List for A Record (Example: 223.5.5.5:53,223.6.6.6:53)"`
 	AAAARecordUpstreams  []string `comment:"Upstream List for AAAA Record (Example: [2001:da8::666]:53)"`
@@ -40,14 +33,4 @@ type LogConfig struct {
 type AdvancedConfig struct {
 	NSLookupTimeoutMs     int
 	MaxReceivedPacketSize int
-}
-
-type SocketAddr struct {
-	*net.UDPAddr
-	*net.TCPAddr
-}
-
-type SafeQueue struct {
-	mutex    sync.Mutex
-	contents []interface{}
 }
