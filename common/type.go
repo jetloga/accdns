@@ -21,9 +21,9 @@ type ServiceConfig struct {
 type UpstreamConfig struct {
 	UseUDP               bool     `comment:"Use UDP Protocol to Access Upstream"`
 	UseTCP               bool     `comment:"Use TCP Protocol to Access Upstream"`
-	DefaultUpstreams     []string `comment:"Upstream List for Non-specific Record (Example: 223.5.5.5:53,223.6.6.6,[2001:da8::666]:53)"`
-	ARecordUpstreams     []string `comment:"Upstream List for A Record"`
-	AAAARecordUpstreams  []string `comment:"Upstream List for AAAA Record"`
+	DefaultUpstreams     []string `comment:"Upstream List for Non-specific Record (Example: 223.5.5.5:53,223.6.6.6:53,[2001:da8::666]:53)"`
+	ARecordUpstreams     []string `comment:"Upstream List for A Record (Example: 223.5.5.5:53,223.6.6.6:53)"`
+	AAAARecordUpstreams  []string `comment:"Upstream List for AAAA Record (Example: [2001:da8::666]:53)"`
 	CNAMERecordUpstreams []string `comment:"Upstream List for CNAME Record"`
 	TXTRecordUpstreams   []string `comment:"Upstream List for TXT Record"`
 	PTRRecordUpstreams   []string `comment:"Upstream List for PTR Record"`

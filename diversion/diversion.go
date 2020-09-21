@@ -15,7 +15,9 @@ func HandlePacket(bytes []byte, respCall func([]byte)) error {
 	if err := msg.Unpack(bytes); err != nil {
 		return err
 	}
-	common.Debug("[DIVERSION]", "{Unpack DNS Message}", msg.GoString())
+	if common.IfDebug() {
+		common.Debug("[DIVERSION]", "{Unpack DNS Message}", msg.GoString())
+	}
 	answers := make([]dnsmessage.Resource, 0)
 	numOfQueries := 0
 	for _, question := range msg.Questions {
@@ -29,12 +31,12 @@ func HandlePacket(bytes []byte, respCall func([]byte)) error {
 	idChan := make(chan int, numOfQueries)
 	receivedList := make([]bool, len(msg.Questions))
 	for id, question := range msg.Questions {
-		common.Debug("[DIVERSION]", "{Question}", question.Name, question.Type, question.Class)
+		if common.IfDebug() {
+			common.Debug("[DIVERSION]", "{Question}", question.Name, question.Type, question.Class)
+		}
 		queryType := dnsmessage.Type(0)
 		if len(common.UpstreamsList[question.Type]) != 0 {
 			queryType = question.Type
-		} else {
-			common.Debug("[DIVERSION]", "{Request Default Upstraeams}", question.Name, question.Type, question.Class)
 		}
 		for _, upstream := range common.UpstreamsList[queryType] {
 			newMsg := dnsmessage.Message{
@@ -98,18 +100,24 @@ func requestUpstream(msg *dnsmessage.Message, upstream *common.SocketAddr, answe
 		if err != nil {
 			common.Warning("[DIVERSION]", "{Write UDP Packet}", upstream.UDPAddr, err)
 		}
-		common.Debug("[DIVERSION]", "{Write UDP Packet}", "Write", n, "bytes to", upstream.UDPAddr)
+		if common.IfDebug() {
+			common.Debug("[DIVERSION]", "{Write UDP Packet}", "Write", n, "bytes to", upstream.UDPAddr)
+		}
 		buffer := make([]byte, common.Config.Advanced.MaxReceivedPacketSize)
 		n, err = conn.Read(buffer)
 		if err != nil {
 			common.Warning("[DIVERSION]", "{Read UDP Packet}", upstream.UDPAddr, err)
 		}
-		common.Debug("[DIVERSION]", "{Read UDP Packet}", "Read", n, "bytes from", upstream.UDPAddr)
+		if common.IfDebug() {
+			common.Debug("[DIVERSION]", "{Read UDP Packet}", "Read", n, "bytes from", upstream.UDPAddr)
+		}
 		receivedMsg := dnsmessage.Message{}
 		if err := receivedMsg.Unpack(buffer); err != nil {
 			common.Warning("[DIVERSION]", "{DNS Unpack}", upstream.UDPAddr, err)
 		}
-		common.Debug("[DIVERSION]", "{Unpack DNS Message}", upstream.UDPAddr.String(), receivedMsg.GoString())
+		if common.IfDebug() {
+			common.Debug("[DIVERSION]", "{Unpack DNS Message}", upstream.UDPAddr.String(), receivedMsg.GoString())
+		}
 		answerChan <- receivedMsg.Answers
 		idChan <- questionId
 	}

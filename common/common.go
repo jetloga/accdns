@@ -248,3 +248,6 @@ func Debug(objs ...interface{}) {
 	}
 	Logger.Debug(strings.TrimSpace(msg))
 }
+func IfDebug() bool {
+	return Config.Log.LogLevelForFile == "debug" || Config.Log.LogLevelForConsole == "debug"
+}

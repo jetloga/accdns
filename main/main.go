@@ -46,16 +46,20 @@ func main() {
 					common.Warning("[MAIN]", "{Read UDP Packet}", addr, err)
 					continue
 				}
-				common.Debug("[MAIN]", "{Read UDP Packet}", bufferBytes)
-				common.Debug("[MAIN]", "{Read UDP Packet}", "Read", n, "bytes from", addr)
+				if common.IfDebug() {
+					common.Debug("[MAIN]", "{Read UDP Packet}", bufferBytes)
+					common.Debug("[MAIN]", "{Read UDP Packet}", "Read", n, "bytes from", addr)
+				}
 				go func() {
 					if err = diversion.HandlePacket(bufferBytes, func(respBytes []byte) {
 						n, err := listener.WriteToUDP(respBytes, addr)
 						if err != nil {
 							common.Warning("[MAIN]", "{Write UDP Packet}", addr, err)
 						}
-						common.Debug("[MAIN]", "{Write UDP Packet}", respBytes)
-						common.Debug("[MAIN]", "{Write UDP Packet}", "Write", n, "bytes to", addr)
+						if common.IfDebug() {
+							common.Debug("[MAIN]", "{Write UDP Packet}", respBytes)
+							common.Debug("[MAIN]", "{Write UDP Packet}", "Write", n, "bytes to", addr)
+						}
 					}); err != nil {
 						common.Warning("[MAIN]", "{Handle DNS Packet}", addr, err)
 					}
@@ -94,8 +98,10 @@ func main() {
 						common.Warning("[MAIN]", "{Read DNS Packet from TCP Connection}", conn.RemoteAddr(), err)
 						return
 					}
-					common.Debug("[MAIN]", "{Read DNS Packet from TCP Connection}", bufferBytes)
-					common.Debug("[MAIN]", "{Read DNS Packet from TCP Connection}", "Read", n, "bytes from", conn.RemoteAddr())
+					if common.IfDebug() {
+						common.Debug("[MAIN]", "{Read DNS Packet from TCP Connection}", bufferBytes)
+						common.Debug("[MAIN]", "{Read DNS Packet from TCP Connection}", "Read", n, "bytes from", conn.RemoteAddr())
+					}
 					if n >= 2 {
 						size := uint16(0)
 						if err := binary.Read(bytes.NewBuffer(bufferBytes[:2]), binary.BigEndian, &size); err != nil {
@@ -119,8 +125,10 @@ func main() {
 							if err != nil {
 								common.Warning("[MAIN]", "{Write DNS Packet to TCP Connection}", conn.RemoteAddr(), err)
 							}
-							common.Debug("[MAIN]", "{Write DNS Packet to TCP Connection}", completeBytes)
-							common.Debug("[MAIN]", "{Write DNS Packet to TCP Connection}", "Write", n, "bytes to", conn.RemoteAddr())
+							if common.IfDebug() {
+								common.Debug("[MAIN]", "{Write DNS Packet to TCP Connection}", completeBytes)
+								common.Debug("[MAIN]", "{Write DNS Packet to TCP Connection}", "Write", n, "bytes to", conn.RemoteAddr())
+							}
 						}); err != nil {
 							common.Warning(err)
 						}
