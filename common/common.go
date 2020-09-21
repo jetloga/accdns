@@ -7,7 +7,6 @@ import (
 	"golang.org/x/net/dns/dnsmessage"
 	"gopkg.in/ini.v1"
 	"net"
-	"os"
 	"strconv"
 	"strings"
 )
@@ -47,15 +46,6 @@ var UpstreamsList [256][]*SocketAddr
 func Init(configFilePath string) error {
 
 	if configFilePath != "" {
-		configFile, err := os.Open(configFilePath)
-		if err != nil {
-			return err
-		}
-		defer func() {
-			if err := configFile.Close(); err != nil {
-				Warning(err)
-			}
-		}()
 		cfg, err := ini.Load(configFilePath)
 		if err != nil {
 			return err
@@ -167,10 +157,18 @@ func Init(configFilePath string) error {
 		}
 		UpstreamsList[typeCode] = append(UpstreamsList[typeCode], socketAddr)
 	}
-	Logger.Alert("DnsDiversion Started")
 	return nil
 }
-
+func CreateConfigFile(configFilePath string) error {
+	cfg := ini.Empty()
+	if err := cfg.ReflectFrom(Config); err != nil {
+		return err
+	}
+	if err := cfg.SaveTo(configFilePath); err != nil {
+		return err
+	}
+	return nil
+}
 func ParseKVPair(kvPair string) (key, value string, err error) {
 	index := strings.Index(kvPair, ":")
 	if index < 0 {
@@ -200,6 +198,13 @@ func Error(objs ...interface{}) {
 		msg += fmt.Sprint(obj) + " "
 	}
 	Logger.Error(strings.TrimSpace(msg))
+}
+func Alert(objs ...interface{}) {
+	msg := ""
+	for _, obj := range objs {
+		msg += fmt.Sprint(obj) + " "
+	}
+	Logger.Alert(strings.TrimSpace(msg))
 }
 func Warning(objs ...interface{}) {
 	msg := ""

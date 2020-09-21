@@ -26,7 +26,7 @@ func HandlePacket(bytes []byte, respCall func([]byte)) error {
 		numOfQueries += len(common.UpstreamsList[queryType])
 	}
 	answerChan := make(chan []dnsmessage.Resource, numOfQueries)
-	idChan := make(chan int, len(msg.Questions))
+	idChan := make(chan int, numOfQueries)
 	receivedList := make([]bool, len(msg.Questions))
 	for id, question := range msg.Questions {
 		common.Debug("[DIVERSION]", "{Question}", question.Name, question.Type, question.Class)
