@@ -32,7 +32,7 @@ type UpstreamConfig struct {
 
 type LogConfig struct {
 	LogFilePath        string `comment:"Log File Path"`
-	LogFileMaxSize     int    `comment:"Max Size of Log File"`
+	LogFileMaxSizeKB   int64  `comment:"Max Size of Log File (KB)"`
 	LogLevelForFile    string `comment:"Log Level for Log File"`
 	LogLevelForConsole string `comment:"Log Level for Console"`
 }

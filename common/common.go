@@ -30,8 +30,8 @@ var Config = &ConfigStruct{
 		CustomRecordUpstream: make([]string, 0),
 	},
 	Log: &LogConfig{
-		LogFilePath:        "/dev/null",
-		LogFileMaxSize:     4096,
+		LogFilePath:        "",
+		LogFileMaxSizeKB:   16 * 1024,
 		LogLevelForFile:    "info",
 		LogLevelForConsole: "info",
 	},
@@ -71,6 +71,27 @@ func Init(configFilePath string) error {
 		_ = Logger.Detach("console")
 	default:
 		Error("[COMMON]", "{Set Log Level}", "unknown log level", Config.Log.LogLevelForConsole)
+	}
+
+	if Config.Log.LogFilePath != "" {
+		logFileConfig := &go_logger.FileConfig{
+			Filename:  Config.Log.LogFilePath,
+			MaxSize:   Config.Log.LogFileMaxSizeKB,
+			DateSlice: "d",
+		}
+		switch Config.Log.LogLevelForFile {
+		case "debug":
+			_ = Logger.Attach("file", go_logger.LOGGER_LEVEL_DEBUG, logFileConfig)
+		case "info":
+			_ = Logger.Attach("file", go_logger.LOGGER_LEVEL_INFO, logFileConfig)
+		case "warning":
+			_ = Logger.Attach("file", go_logger.LOGGER_LEVEL_WARNING, logFileConfig)
+		case "error":
+			_ = Logger.Attach("file", go_logger.LOGGER_LEVEL_ERROR, logFileConfig)
+		case "none":
+		default:
+			Error("[COMMON]", "{Set Log Level}", "unknown log level", Config.Log.LogLevelForFile)
+		}
 	}
 	for typeCode := range UpstreamsList {
 		switch dnsmessage.Type(typeCode) {
