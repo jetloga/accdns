@@ -1,9 +1,20 @@
 package network
 
-import "net"
+import (
+	"net"
+)
 
 type SocketAddr struct {
-	*net.UDPAddr
-	*net.TCPAddr
-	Network string
+	UDPAddr *net.UDPAddr
+	TCPAddr *net.TCPAddr
+}
+
+type SocketConn struct {
+	UDPConn  *net.UDPConn
+	TCPConn  *net.TCPConn
+	deadTime int64
+}
+
+type ConnPool struct {
+	connectionMap map[string]*SocketConn
 }

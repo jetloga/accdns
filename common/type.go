@@ -31,6 +31,9 @@ type LogConfig struct {
 }
 
 type AdvancedConfig struct {
-	NSLookupTimeoutMs     int
-	MaxReceivedPacketSize int
+	NSLookupTimeoutMs      int
+	RWTimeoutMs            int
+	MaxReceivedPacketSize  int
+	MaxNumOfIdleConnection int
+	IdleConnectionTimeout  int
 }

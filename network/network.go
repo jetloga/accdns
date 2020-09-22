@@ -11,6 +11,7 @@ import (
 	"net"
 	"strconv"
 	"strings"
+	"time"
 )
 
 var UpstreamsList [256][]*SocketAddr
@@ -25,7 +26,7 @@ func Init() error {
 				if err != nil {
 					return err
 				}
-				logger.Info("Load Default Upstream", socketAddr.Network, socketAddr.UDPAddr.String())
+				logger.Info("Load Default Upstream", socketAddr.String())
 				UpstreamsList[typeCode][i] = socketAddr
 			}
 		case dnsmessage.TypeA:
@@ -35,7 +36,7 @@ func Init() error {
 				if err != nil {
 					return err
 				}
-				logger.Info("Load Upstream For A Record", socketAddr.Network, socketAddr.UDPAddr.String())
+				logger.Info("Load Upstream For A Record", socketAddr.String())
 				UpstreamsList[typeCode][i] = socketAddr
 			}
 		case dnsmessage.TypeAAAA:
@@ -45,7 +46,7 @@ func Init() error {
 				if err != nil {
 					return err
 				}
-				logger.Info("Load Upstream For AAAA Record", socketAddr.Network, socketAddr.UDPAddr.String())
+				logger.Info("Load Upstream For AAAA Record", socketAddr.String())
 				UpstreamsList[typeCode][i] = socketAddr
 			}
 		case dnsmessage.TypeCNAME:
@@ -55,7 +56,7 @@ func Init() error {
 				if err != nil {
 					return err
 				}
-				logger.Info("Load Upstream For CNAME Record", socketAddr.Network, socketAddr.UDPAddr.String())
+				logger.Info("Load Upstream For CNAME Record", socketAddr.String())
 				UpstreamsList[typeCode][i] = socketAddr
 			}
 		case dnsmessage.TypeTXT:
@@ -65,7 +66,7 @@ func Init() error {
 				if err != nil {
 					return err
 				}
-				logger.Debug("Load Upstream For TXT Record", socketAddr.Network, socketAddr.UDPAddr.String())
+				logger.Debug("Load Upstream For TXT Record", socketAddr.String())
 				UpstreamsList[typeCode][i] = socketAddr
 			}
 		case dnsmessage.TypePTR:
@@ -75,7 +76,7 @@ func Init() error {
 				if err != nil {
 					return err
 				}
-				logger.Debug("Load Upstream For PTR Record", socketAddr.Network, socketAddr.UDPAddr.String())
+				logger.Debug("Load Upstream For PTR Record", socketAddr.String())
 				UpstreamsList[typeCode][i] = socketAddr
 			}
 		default:
@@ -104,11 +105,13 @@ func Init() error {
 	return nil
 }
 func ParseNewSocketAddr(addrStr string) (*SocketAddr, error) {
-	socketAddr := SocketAddr{
-		Network: "udp",
+	socketAddr := &SocketAddr{
+		UDPAddr: nil,
+		TCPAddr: nil,
 	}
+	isTCP := false
 	if strings.HasPrefix(addrStr, "tcp:") {
-		socketAddr.Network = "tcp"
+		isTCP = true
 		addrStr = addrStr[4:]
 	} else if strings.HasPrefix(addrStr, "udp:") {
 		addrStr = addrStr[4:]
@@ -126,19 +129,24 @@ func ParseNewSocketAddr(addrStr string) (*SocketAddr, error) {
 		}
 		addrStr = addrStr[index+1:]
 	} else {
-		index := strings.Index(addrStr, ":")
-		if index < 0 {
-			ip = net.ParseIP(addrStr)
-			if ip == nil {
-				return nil, errors.New("wrong socket address " + addrStr)
+		ip = net.ParseIP(addrStr)
+		if ip == nil {
+			index := strings.Index(addrStr, ":")
+			if index < 0 {
+				ip = net.ParseIP(addrStr)
+				if ip == nil {
+					return nil, errors.New("wrong socket address " + addrStr)
+				}
+				addrStr = ""
+			} else {
+				ip = net.ParseIP(addrStr[:index])
+				if ip == nil {
+					return nil, errors.New("wrong socket address " + addrStr)
+				}
+				addrStr = addrStr[index:]
 			}
-			addrStr = ""
 		} else {
-			ip = net.ParseIP(addrStr[:index])
-			if ip == nil {
-				return nil, errors.New("wrong socket address " + addrStr)
-			}
-			addrStr = addrStr[index:]
+			addrStr = ""
 		}
 	}
 	if len(addrStr) > 0 {
@@ -152,7 +160,7 @@ func ParseNewSocketAddr(addrStr string) (*SocketAddr, error) {
 		}
 		port = myPort
 	}
-	if socketAddr.Network == "tcp" {
+	if isTCP {
 		socketAddr.TCPAddr = &net.TCPAddr{
 			IP:   ip,
 			Port: port,
@@ -163,7 +171,7 @@ func ParseNewSocketAddr(addrStr string) (*SocketAddr, error) {
 			Port: port,
 		}
 	}
-	return &socketAddr, nil
+	return socketAddr, nil
 }
 
 func WritePacketToTCPConn(writeBytes []byte, conn *net.TCPConn) (int, error) {
@@ -195,4 +203,124 @@ func ReadPacketFromTCPConn(conn *net.TCPConn) ([]byte, int, error) {
 	}
 	bufferBytes = bytes.TrimRight(bufferBytes, "\x00")
 	return bufferBytes, n, nil
+}
+
+func (addr *SocketAddr) String() string {
+	if addr.UDPAddr != nil {
+		return "udp " + addr.UDPAddr.String()
+	} else if addr.TCPAddr != nil {
+		return "tcp " + addr.TCPAddr.String()
+	}
+	return "<nil>"
+}
+
+func EstablishNewSocketConn(addr *SocketAddr) (conn *SocketConn, err error) {
+	conn = &SocketConn{
+		UDPConn: nil,
+		TCPConn: nil,
+	}
+	if addr.UDPAddr != nil {
+		conn.UDPConn, err = net.DialUDP("udp", nil, addr.UDPAddr)
+		err = conn.SetDeadline(time.Now().Add(time.Duration(common.Config.Advanced.IdleConnectionTimeout) * time.Second))
+	} else if addr.TCPAddr != nil {
+		conn.TCPConn, err = net.DialTCP("tcp", nil, addr.TCPAddr)
+		err = conn.SetDeadline(time.Now().Add(time.Duration(common.Config.Advanced.IdleConnectionTimeout) * time.Second))
+	} else {
+		err = errors.New("socket address not initialize")
+	}
+	return
+}
+
+func (conn *SocketConn) ReadPacket() (readBytes []byte, n int, err error) {
+	if conn.IsDead() {
+		err = errors.New("connection is dead")
+		return
+	}
+	if err = conn.SetDeadline(time.Now().Add(time.Duration(common.Config.Advanced.RWTimeoutMs) * time.Millisecond)); err != nil {
+		return
+	}
+	if conn.UDPConn != nil {
+		readBytes = make([]byte, common.Config.Advanced.MaxReceivedPacketSize)
+		n, err = conn.UDPConn.Read(readBytes)
+		if err != nil {
+			return
+		}
+		if err = conn.SetDeadline(time.Now().Add(time.Duration(common.Config.Advanced.IdleConnectionTimeout) * time.Second)); err != nil {
+			return
+		}
+		readBytes = bytes.TrimRight(readBytes, "\x00")
+	} else if conn.TCPConn != nil {
+		readBytes, n, err = ReadPacketFromTCPConn(conn.TCPConn)
+		if err != nil {
+			return
+		}
+		err = conn.SetDeadline(time.Now().Add(time.Duration(common.Config.Advanced.IdleConnectionTimeout) * time.Second))
+	} else {
+		err = errors.New("socket connection not initialize")
+	}
+	return
+}
+
+func (conn *SocketConn) WritePacket(packetBytes []byte) (n int, err error) {
+	if conn.IsDead() {
+		err = errors.New("connection is dead")
+		return
+	}
+	if err = conn.SetDeadline(time.Now().Add(time.Duration(common.Config.Advanced.RWTimeoutMs) * time.Millisecond)); err != nil {
+		return
+	}
+	if conn.UDPConn != nil {
+		n, err = conn.UDPConn.Write(packetBytes)
+		if err != nil {
+			return
+		}
+		err = conn.SetDeadline(time.Now().Add(time.Duration(common.Config.Advanced.IdleConnectionTimeout) * time.Second))
+	} else if conn.TCPConn != nil {
+		n, err = WritePacketToTCPConn(packetBytes, conn.TCPConn)
+		if err != nil {
+			return
+		}
+		err = conn.SetDeadline(time.Now().Add(time.Duration(common.Config.Advanced.IdleConnectionTimeout) * time.Second))
+	} else {
+		err = errors.New("socket connection not initialize")
+	}
+	return
+}
+
+func (conn *SocketConn) SetDeadline(t time.Time) (err error) {
+	if conn.IsDead() {
+		err = errors.New("connection is dead")
+		return
+	}
+	conn.deadTime = t.UnixNano()
+	if conn.UDPConn != nil {
+		err = conn.UDPConn.SetDeadline(t)
+	} else if conn.TCPConn != nil {
+		err = conn.UDPConn.SetDeadline(t)
+	} else {
+		err = errors.New("socket connection not initialize")
+	}
+	return
+}
+
+func (conn *SocketConn) IsDead() bool {
+	if conn.deadTime != 0 {
+		return time.Now().UnixNano() > conn.deadTime
+	} else {
+		return false
+	}
+}
+
+func (conn *SocketConn) Close() (err error) {
+	if conn.IsDead() {
+		err = errors.New("connection is dead")
+		return
+	}
+	conn.deadTime = -1
+	if conn.UDPConn != nil {
+		err = conn.UDPConn.Close()
+	} else if conn.TCPConn != nil {
+		err = conn.TCPConn.Close()
+	}
+	return
 }

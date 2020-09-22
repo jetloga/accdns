@@ -5,7 +5,6 @@ import (
 	"DnsDiversion/logger"
 	"DnsDiversion/network"
 	"golang.org/x/net/dns/dnsmessage"
-	"net"
 	"sync/atomic"
 	"time"
 )
@@ -29,7 +28,7 @@ func HandlePacket(bytes []byte, respCall func([]byte)) error {
 		}
 		numOfQueries += len(network.UpstreamsList[queryType])
 	}
-	answerChan := make(chan []dnsmessage.Resource, numOfQueries)
+	msgChan := make(chan *dnsmessage.Message, numOfQueries)
 	idChan := make(chan int, numOfQueries)
 	receivedList := make([]bool, len(msg.Questions))
 	for id, question := range msg.Questions {
@@ -49,11 +48,7 @@ func HandlePacket(bytes []byte, respCall func([]byte)) error {
 				Questions: make([]dnsmessage.Question, 1),
 			}
 			newMsg.Questions[0] = question
-			if upstream.Network == "udp" {
-				go requestUpstreamWithUDP(&newMsg, upstream.UDPAddr, answerChan, id, idChan)
-			} else if upstream.Network == "tcp" {
-				go requestUpstreamWithTCP(&newMsg, upstream.TCPAddr, answerChan, id, idChan)
-			}
+			go requestUpstreamDNS(&newMsg, upstream, msgChan, id, idChan)
 		}
 	}
 	timer := time.NewTimer(time.Duration(common.Config.Advanced.NSLookupTimeoutMs) * time.Millisecond)
@@ -72,8 +67,9 @@ loop:
 			if allReceived {
 				break loop
 			}
-		case myAnswers := <-answerChan:
-			answers = append(answers, myAnswers...)
+		case myMsg := <-msgChan:
+			msg.Header.RCode = myMsg.Header.RCode
+			answers = append(answers, myMsg.Answers...)
 		case <-timer.C:
 			break loop
 		}
@@ -88,81 +84,36 @@ loop:
 	return nil
 }
 
-func requestUpstreamWithUDP(msg *dnsmessage.Message, upstreamAddr *net.UDPAddr, answerChan chan []dnsmessage.Resource, questionId int, idChan chan int) {
-	conn, err := net.DialUDP("udp", nil, upstreamAddr)
+func requestUpstreamDNS(msg *dnsmessage.Message, upstreamAddr *network.SocketAddr, msgChan chan *dnsmessage.Message, questionId int, idChan chan int) {
+	conn, err := network.EstablishNewSocketConn(upstreamAddr)
 	if err != nil {
-		logger.Warning("Dial UDP", upstreamAddr, err)
+		logger.Warning("Dial Socket Connection", upstreamAddr, err)
 	}
 	defer func() {
 		_ = conn.Close()
 		idChan <- questionId
 	}()
-	if err := conn.SetDeadline(time.Now().Add(time.Duration(common.Config.Advanced.NSLookupTimeoutMs) * time.Millisecond)); err != nil {
-		logger.Warning("Set UDP Timeout", upstreamAddr, err)
-	}
-	receivedMsg, err := requestDNS(msg, func() ([]byte, error) {
-		buffer := make([]byte, common.Config.Advanced.MaxReceivedPacketSize)
-		if _, err := conn.Read(buffer); err != nil {
-			return nil, err
-		}
-		return buffer, nil
-	}, func(bytes []byte) error {
-		_, err := conn.Write(bytes)
-		return err
-	})
-	if err != nil {
-		logger.Warning("Request DNS", err)
-		return
-	}
-	if common.NeedDebug() {
-		logger.Debug("Unpack DNS Message", upstreamAddr.String(), receivedMsg.GoString())
-	}
-	answerChan <- receivedMsg.Answers
-}
-func requestUpstreamWithTCP(msg *dnsmessage.Message, upstreamAddr *net.TCPAddr, answerChan chan []dnsmessage.Resource, questionId int, idChan chan int) {
-	conn, err := net.DialTCP("tcp", nil, upstreamAddr)
-	if err != nil {
-		logger.Warning("Dial TCP", upstreamAddr, err)
-	}
-	defer func() {
-		_ = conn.Close()
-		idChan <- questionId
-	}()
-	if err := conn.SetDeadline(time.Now().Add(time.Duration(common.Config.Advanced.NSLookupTimeoutMs) * time.Millisecond)); err != nil {
-		logger.Warning("Set TCP Timeout", upstreamAddr, err)
-	}
-	receivedMsg, err := requestDNS(msg, func() ([]byte, error) {
-		readBytes, _, err := network.ReadPacketFromTCPConn(conn)
-		return readBytes, err
-	}, func(bytes []byte) error {
-		_, err := network.WritePacketToTCPConn(bytes, conn)
-		return err
-	})
-	if err != nil {
-		logger.Warning("Request DNS", err)
-		return
-	}
-	if common.NeedDebug() {
-		logger.Debug("Unpack DNS Message", upstreamAddr.String(), receivedMsg.GoString())
-	}
-	answerChan <- receivedMsg.Answers
-}
-
-func requestDNS(msg *dnsmessage.Message, readFunc func() ([]byte, error), writeFunc func([]byte) error) (*dnsmessage.Message, error) {
 	bytes, err := msg.Pack()
 	if err != nil {
-		return nil, err
+		logger.Warning("Pack DNS Packet", upstreamAddr, err)
 	}
-	if err := writeFunc(bytes); err != nil {
-		return nil, err
+	if _, err := conn.WritePacket(bytes); err != nil {
+		logger.Warning("Write DNS Packet", upstreamAddr, err)
 	}
-	readBytes, err := readFunc()
+	readBytes, _, err := conn.ReadPacket()
 	if err != nil {
-		return nil, err
+		logger.Warning("Read DNS Packet", upstreamAddr, err)
 	}
-	receivedMsg := dnsmessage.Message{}
+	receivedMsg := &dnsmessage.Message{}
 	if err := receivedMsg.Unpack(readBytes); err != nil {
-		return nil, err
+		logger.Warning("Unpack DNS Packet", upstreamAddr, err)
 	}
-	return &receivedMsg, nil
+	if err != nil {
+		logger.Warning("Request DNS", err)
+		return
+	}
+	if common.NeedDebug() {
+		logger.Debug("Unpack DNS Message", upstreamAddr.String(), receivedMsg.GoString())
+	}
+	msgChan <- receivedMsg
 }
