@@ -94,7 +94,6 @@ func requestUpstreamDNS(msg *dnsmessage.Message, upstreamAddr *network.SocketAdd
 	}
 	defer func() {
 		_ = network.GlobalConnPool.ReleaseConn(conn)
-		idChan <- questionId
 	}()
 	bytes, err := msg.Pack()
 	if err != nil {
@@ -119,4 +118,5 @@ func requestUpstreamDNS(msg *dnsmessage.Message, upstreamAddr *network.SocketAdd
 		logger.Debug("Unpack DNS Message", upstreamAddr.String(), receivedMsg.GoString())
 	}
 	msgChan <- receivedMsg
+	idChan <- questionId
 }
