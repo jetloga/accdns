@@ -51,6 +51,8 @@ func HandlePacket(bytes []byte, respCall func([]byte)) error {
 			go requestUpstreamDNS(&newMsg, upstream, msgChan, id, idChan)
 		}
 	}
+	msg.Header.RCode = dnsmessage.RCodeServerFailure
+	msg.Header.Response = true
 	timer := time.NewTimer(time.Duration(common.Config.Advanced.NSLookupTimeoutMs) * time.Millisecond)
 loop:
 	for {
@@ -68,13 +70,14 @@ loop:
 				break loop
 			}
 		case myMsg := <-msgChan:
-			msg.Header.RCode = myMsg.Header.RCode
+			if msg.Header.RCode != dnsmessage.RCodeSuccess {
+				msg.Header.RCode = myMsg.Header.RCode
+			}
 			answers = append(answers, myMsg.Answers...)
 		case <-timer.C:
 			break loop
 		}
 	}
-	msg.Header.Response = true
 	msg.Answers = answers
 	bytes, err := msg.Pack()
 	if err != nil {

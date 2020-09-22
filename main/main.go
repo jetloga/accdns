@@ -5,7 +5,6 @@ import (
 	"DnsDiversion/diversion"
 	"DnsDiversion/logger"
 	"DnsDiversion/network"
-	"bytes"
 	"flag"
 	"net"
 	"sync"
@@ -49,7 +48,6 @@ func main() {
 			for true {
 				bufferBytes := make([]byte, common.Config.Advanced.MaxReceivedPacketSize)
 				n, addr, err := listener.ReadFromUDP(bufferBytes)
-				bufferBytes = bytes.TrimRight(bufferBytes, "\x00")
 				if err != nil {
 					logger.Warning("Read UDP Packet", addr, err)
 					continue

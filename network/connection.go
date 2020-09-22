@@ -2,7 +2,6 @@ package network
 
 import (
 	"DnsDiversion/common"
-	"bytes"
 	"errors"
 	"net"
 	"time"
@@ -40,10 +39,7 @@ func (conn *SocketConn) ReadPacket() (readBytes []byte, n int, err error) {
 		if err != nil {
 			return
 		}
-		if err = conn.SetDeadline(time.Now().Add(time.Duration(common.Config.Advanced.IdleConnectionTimeout) * time.Second)); err != nil {
-			return
-		}
-		readBytes = bytes.TrimRight(readBytes, "\x00")
+		err = conn.SetDeadline(time.Now().Add(time.Duration(common.Config.Advanced.IdleConnectionTimeout) * time.Second))
 	} else if conn.TCPConn != nil {
 		readBytes, n, err = ReadPacketFromTCPConn(conn.TCPConn)
 		if err != nil {

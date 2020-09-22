@@ -202,7 +202,6 @@ func ReadPacketFromTCPConn(conn *net.TCPConn) ([]byte, int, error) {
 	if err != nil {
 		return nil, n, err
 	}
-	bufferBytes = bytes.TrimRight(bufferBytes, "\x00")
 	return bufferBytes, n, nil
 }
 
