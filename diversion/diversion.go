@@ -85,12 +85,12 @@ loop:
 }
 
 func requestUpstreamDNS(msg *dnsmessage.Message, upstreamAddr *network.SocketAddr, msgChan chan *dnsmessage.Message, questionId int, idChan chan int) {
-	conn, err := network.EstablishNewSocketConn(upstreamAddr)
+	conn, err := network.GlobalConnPool.RequireConn(upstreamAddr)
 	if err != nil {
 		logger.Warning("Dial Socket Connection", upstreamAddr, err)
 	}
 	defer func() {
-		_ = conn.Close()
+		_ = network.GlobalConnPool.ReleaseConn(conn)
 		idChan <- questionId
 	}()
 	bytes, err := msg.Pack()

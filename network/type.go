@@ -2,6 +2,7 @@ package network
 
 import (
 	"net"
+	"sync"
 )
 
 type SocketAddr struct {
@@ -10,11 +11,13 @@ type SocketAddr struct {
 }
 
 type SocketConn struct {
-	UDPConn  *net.UDPConn
-	TCPConn  *net.TCPConn
-	deadTime int64
+	SocketAddr *SocketAddr
+	UDPConn    *net.UDPConn
+	TCPConn    *net.TCPConn
+	deadTime   int64
 }
 
 type ConnPool struct {
-	connectionMap map[string]*SocketConn
+	connChanMapLocker sync.RWMutex
+	connChanMap       map[string]chan *SocketConn
 }
