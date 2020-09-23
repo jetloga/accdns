@@ -19,7 +19,6 @@ func HandlePacket(bytes []byte, respCall func([]byte)) error {
 	if common.NeedDebug() {
 		logger.Debug("Unpack DNS Message", msg.GoString())
 	}
-	answers := make([]dnsmessage.Resource, 0)
 	numOfQueries := 0
 	for _, question := range msg.Questions {
 		queryType := dnsmessage.Type(0)
@@ -73,12 +72,11 @@ loop:
 			if msg.Header.RCode != dnsmessage.RCodeSuccess {
 				msg.Header.RCode = myMsg.Header.RCode
 			}
-			answers = append(answers, myMsg.Answers...)
+			msg.Answers = append(msg.Answers, myMsg.Answers...)
 		case <-timer.C:
 			break loop
 		}
 	}
-	msg.Answers = answers
 	bytes, err := msg.Pack()
 	if err != nil {
 		return err
@@ -91,32 +89,33 @@ func requestUpstreamDNS(msg *dnsmessage.Message, upstreamAddr *network.SocketAdd
 	conn, err := network.GlobalConnPool.RequireConn(upstreamAddr)
 	if err != nil {
 		logger.Warning("Dial Socket Connection", upstreamAddr, err)
+		return
 	}
 	defer func() {
+		idChan <- questionId
 		_ = network.GlobalConnPool.ReleaseConn(conn)
 	}()
 	bytes, err := msg.Pack()
 	if err != nil {
 		logger.Warning("Pack DNS Packet", upstreamAddr, err)
+		return
 	}
 	if _, err := conn.WritePacket(bytes); err != nil {
 		logger.Warning("Write DNS Packet", upstreamAddr, err)
+		return
 	}
 	readBytes, _, err := conn.ReadPacket()
 	if err != nil {
 		logger.Warning("Read DNS Packet", upstreamAddr, err)
+		return
 	}
 	receivedMsg := &dnsmessage.Message{}
 	if err := receivedMsg.Unpack(readBytes); err != nil {
 		logger.Warning("Unpack DNS Packet", upstreamAddr, err)
-	}
-	if err != nil {
-		logger.Warning("Request DNS", err)
 		return
 	}
 	if common.NeedDebug() {
 		logger.Debug("Unpack DNS Message", upstreamAddr.String(), receivedMsg.GoString())
 	}
 	msgChan <- receivedMsg
-	idChan <- questionId
 }
