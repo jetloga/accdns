@@ -14,13 +14,13 @@ type ServiceConfig struct {
 }
 
 type UpstreamConfig struct {
-	DefaultUpstreams     []string `comment:"Upstream List for Non-specific Record (Example: 223.5.5.5:53,223.6.6.6:53,[2001:da8::666]:53)"`
-	ARecordUpstreams     []string `comment:"Upstream List for A Record (Example: 223.5.5.5:53,223.6.6.6:53)"`
-	AAAARecordUpstreams  []string `comment:"Upstream List for AAAA Record (Example: [2001:da8::666]:53)"`
-	CNAMERecordUpstreams []string `comment:"Upstream List for CNAME Record"`
-	TXTRecordUpstreams   []string `comment:"Upstream List for TXT Record"`
-	PTRRecordUpstreams   []string `comment:"Upstream List for PTR Record"`
-	CustomRecordUpstream []string `comment:"Upstream List for Custom Record (Example: 1:223.5.5.5:53,1:223.6.6.6,28:[2001:da8::666]:53)"`
+	DefaultUpstreams     []string `comment:"Upstream List for Non-specific Record (Example: 223.5.5.5,udp:223.6.6.6:53,tcp:208.67.222.222,2001:da8::666,[2620:0:ccd::2]:53,tcp:2620:0:ccc::2)"`
+	ARecordUpstreams     []string `comment:"Upstream List for A Record (Example: 223.5.5.5,udp:223.6.6.6:53,tcp:208.67.222.222,2001:da8::666,[2620:0:ccd::2]:53,tcp:2620:0:ccc::2)"`
+	AAAARecordUpstreams  []string `comment:"Upstream List for AAAA Record (Example: 223.5.5.5,udp:223.6.6.6:53,tcp:208.67.222.222,2001:da8::666,[2620:0:ccd::2]:53,tcp:2620:0:ccc::2)"`
+	CNAMERecordUpstreams []string `comment:"Upstream List for CNAME Record (Example: 223.5.5.5,udp:223.6.6.6:53,tcp:208.67.222.222,2001:da8::666,[2620:0:ccd::2]:53,tcp:2620:0:ccc::2)"`
+	TXTRecordUpstreams   []string `comment:"Upstream List for TXT Record (Example: 223.5.5.5,udp:223.6.6.6:53,tcp:208.67.222.222,2001:da8::666,[2620:0:ccd::2]:53,tcp:2620:0:ccc::2)"`
+	PTRRecordUpstreams   []string `comment:"Upstream List for PTR Record (Example: 223.5.5.5,udp:223.6.6.6:53,tcp:208.67.222.222,2001:da8::666,[2620:0:ccd::2]:53,tcp:2620:0:ccc::2)"`
+	CustomRecordUpstream []string `comment:"Upstream List for Custom Record (Example: 1:223.5.5.5,1:udp:223.6.6.6:53,1:tcp:208.67.222.222,28:2001:da8::666,28:[2620:0:ccd::2]:53,28:tcp:2620:0:ccc::2)"`
 }
 
 type LogConfig struct {

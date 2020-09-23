@@ -98,7 +98,9 @@ func requestUpstreamDNS(msg *dnsmessage.Message, upstreamAddr *network.SocketAdd
 	}
 	defer func() {
 		idChan <- questionId
-		_ = network.GlobalConnPool.ReleaseConn(conn)
+		if err := network.GlobalConnPool.ReleaseConn(conn); err != nil {
+			logger.Warning("Release Connection", err)
+		}
 	}()
 	bytes, err := msg.Pack()
 	if err != nil {
