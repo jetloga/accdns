@@ -29,7 +29,7 @@ var Config = &ConfigStruct{
 	},
 	Advanced: &AdvancedConfig{
 		NSLookupTimeoutMs:            10000,
-		RWTimeoutMs:                  5000,
+		RWTimeoutMs:                  6000,
 		MaxReceivedPacketSize:        512,
 		MaxIdleConnectionPerUpstream: 32,
 		IdleConnectionTimeout:        60,

@@ -52,6 +52,9 @@ func HandlePacket(bytes []byte, respCall func([]byte)) error {
 	}
 	msg.Header.RCode = dnsmessage.RCodeServerFailure
 	msg.Header.Response = true
+	msg.Answers = make([]dnsmessage.Resource, 0)
+	msg.Authorities = make([]dnsmessage.Resource, 0)
+	msg.Additionals = make([]dnsmessage.Resource, 0)
 	timer := time.NewTimer(time.Duration(common.Config.Advanced.NSLookupTimeoutMs) * time.Millisecond)
 loop:
 	for {
@@ -73,6 +76,8 @@ loop:
 				msg.Header.RCode = myMsg.Header.RCode
 			}
 			msg.Answers = append(msg.Answers, myMsg.Answers...)
+			msg.Authorities = append(msg.Authorities, myMsg.Authorities...)
+			msg.Additionals = append(msg.Additionals, myMsg.Additionals...)
 		case <-timer.C:
 			break loop
 		}
@@ -88,7 +93,7 @@ loop:
 func requestUpstreamDNS(msg *dnsmessage.Message, upstreamAddr *network.SocketAddr, msgChan chan *dnsmessage.Message, questionId int, idChan chan int) {
 	conn, err := network.GlobalConnPool.RequireConn(upstreamAddr)
 	if err != nil {
-		logger.Warning("Dial Socket Connection", upstreamAddr, err)
+		logger.Warning("Dial Socket Connection", err)
 		return
 	}
 	defer func() {
@@ -97,25 +102,25 @@ func requestUpstreamDNS(msg *dnsmessage.Message, upstreamAddr *network.SocketAdd
 	}()
 	bytes, err := msg.Pack()
 	if err != nil {
-		logger.Warning("Pack DNS Packet", upstreamAddr, err)
+		logger.Warning("Pack DNS Packet", err)
 		return
 	}
 	if _, err := conn.WritePacket(bytes); err != nil {
-		logger.Warning("Write DNS Packet", upstreamAddr, err)
+		logger.Warning("Write DNS Packet", err)
 		return
 	}
 	readBytes, _, err := conn.ReadPacket()
 	if err != nil {
-		logger.Warning("Read DNS Packet", upstreamAddr, err)
+		logger.Warning("Read DNS Packet", err)
 		return
 	}
 	receivedMsg := &dnsmessage.Message{}
 	if err := receivedMsg.Unpack(readBytes); err != nil {
-		logger.Warning("Unpack DNS Packet", upstreamAddr, err)
+		logger.Warning("Unpack DNS Packet", err)
 		return
 	}
 	if common.NeedDebug() {
-		logger.Debug("Unpack DNS Message", upstreamAddr.String(), receivedMsg.GoString())
+		logger.Debug("Unpack DNS Message", receivedMsg.GoString())
 	}
 	msgChan <- receivedMsg
 }
