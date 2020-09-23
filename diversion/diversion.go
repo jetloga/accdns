@@ -19,6 +19,23 @@ func HandlePacket(bytes []byte, respCall func([]byte)) error {
 	if common.NeedDebug() {
 		logger.Debug("Unpack DNS Message", msg.GoString())
 	}
+	maxPacketSize := common.Config.Advanced.DefaultMaxPacketSize
+	supportEDNS := false
+	for _, res := range msg.Additionals {
+		if res.Header.Type == dnsmessage.TypeOPT {
+			supportEDNS = true
+			maxPacketSize = common.IntMax(int(res.Header.Class), 512)
+			break
+		}
+	}
+	ednsRes := dnsmessage.Resource{
+		Header: dnsmessage.ResourceHeader{
+			Name:  dnsmessage.MustNewName("."),
+			Type:  dnsmessage.TypeOPT,
+			Class: dnsmessage.Class(maxPacketSize),
+		},
+		Body: &dnsmessage.OPTResource{},
+	}
 	numOfQueries := 0
 	for _, question := range msg.Questions {
 		queryType := dnsmessage.Type(0)
@@ -38,16 +55,18 @@ func HandlePacket(bytes []byte, respCall func([]byte)) error {
 		if len(network.UpstreamsList[question.Type]) != 0 {
 			queryType = question.Type
 		}
+		newMsg := dnsmessage.Message{
+			Header: dnsmessage.Header{
+				ID:    uint16(atomic.AddUint64(&totalQueryCount, 1) % 65536),
+				RCode: dnsmessage.RCodeSuccess,
+			},
+			Questions:   make([]dnsmessage.Question, 1),
+			Additionals: make([]dnsmessage.Resource, 1),
+		}
+		newMsg.Questions[0] = question
+		newMsg.Additionals[0] = ednsRes
 		for _, upstream := range network.UpstreamsList[queryType] {
-			newMsg := dnsmessage.Message{
-				Header: dnsmessage.Header{
-					ID:    uint16(atomic.AddUint64(&totalQueryCount, 1) % 65536),
-					RCode: dnsmessage.RCodeSuccess,
-				},
-				Questions: make([]dnsmessage.Question, 1),
-			}
-			newMsg.Questions[0] = question
-			go requestUpstreamDNS(&newMsg, upstream, msgChan, id, idChan)
+			go requestUpstreamDNS(&newMsg, upstream, msgChan, maxPacketSize, id, idChan)
 		}
 	}
 	msg.Header.RCode = dnsmessage.RCodeServerFailure
@@ -77,20 +96,30 @@ loop:
 			}
 			msg.Answers = append(msg.Answers, myMsg.Answers...)
 			msg.Authorities = append(msg.Authorities, myMsg.Authorities...)
-			msg.Additionals = append(msg.Additionals, myMsg.Additionals...)
+			for _, res := range myMsg.Additionals {
+				if res.Header.Type != dnsmessage.TypeOPT {
+					msg.Additionals = append(msg.Additionals, res)
+				}
+			}
 		case <-timer.C:
 			break loop
 		}
+	}
+	if supportEDNS {
+		msg.Additionals = append(msg.Additionals, ednsRes)
 	}
 	bytes, err := msg.Pack()
 	if err != nil {
 		return err
 	}
+	if common.NeedDebug() {
+		logger.Debug("Pack DNS Message", msg.GoString())
+	}
 	respCall(bytes)
 	return nil
 }
 
-func requestUpstreamDNS(msg *dnsmessage.Message, upstreamAddr *network.SocketAddr, msgChan chan *dnsmessage.Message, questionId int, idChan chan int) {
+func requestUpstreamDNS(msg *dnsmessage.Message, upstreamAddr *network.SocketAddr, msgChan chan *dnsmessage.Message, maxPacketSize int, questionId int, idChan chan int) {
 	conn, err := network.GlobalConnPool.RequireConn(upstreamAddr)
 	if err != nil {
 		logger.Warning("Dial Socket Connection", err)
@@ -111,7 +140,7 @@ func requestUpstreamDNS(msg *dnsmessage.Message, upstreamAddr *network.SocketAdd
 		logger.Warning("Write DNS Packet", err)
 		return
 	}
-	readBytes, _, err := conn.ReadPacket()
+	readBytes, _, err := conn.ReadPacket(maxPacketSize)
 	if err != nil {
 		logger.Warning("Read DNS Packet", err)
 		return

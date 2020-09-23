@@ -25,7 +25,7 @@ func EstablishNewSocketConn(addr *SocketAddr) (conn *SocketConn, err error) {
 	return
 }
 
-func (conn *SocketConn) ReadPacket() (readBytes []byte, n int, err error) {
+func (conn *SocketConn) ReadPacket(maxSize int) (readBytes []byte, n int, err error) {
 	if conn.IsDead() {
 		err = errors.New("connection is dead")
 		return
@@ -34,7 +34,7 @@ func (conn *SocketConn) ReadPacket() (readBytes []byte, n int, err error) {
 		return
 	}
 	if conn.UDPConn != nil {
-		readBytes = make([]byte, common.Config.Advanced.MaxReceivedPacketSize)
+		readBytes = make([]byte, maxSize)
 		n, err = conn.UDPConn.Read(readBytes)
 		if err != nil {
 			return
@@ -87,7 +87,7 @@ func (conn *SocketConn) SetDeadline(t time.Time) (err error) {
 	if conn.UDPConn != nil {
 		err = conn.UDPConn.SetDeadline(t)
 	} else if conn.TCPConn != nil {
-		err = conn.UDPConn.SetDeadline(t)
+		err = conn.TCPConn.SetDeadline(t)
 	} else {
 		err = errors.New("socket connection not initialize")
 	}

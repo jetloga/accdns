@@ -46,7 +46,7 @@ func main() {
 		go func() {
 			defer waitGroup.Done()
 			for true {
-				bufferBytes := make([]byte, common.Config.Advanced.MaxReceivedPacketSize)
+				bufferBytes := make([]byte, common.Config.Advanced.DefaultMaxPacketSize)
 				n, addr, err := listener.ReadFromUDP(bufferBytes)
 				if err != nil {
 					logger.Warning("Read UDP Packet", addr, err)
@@ -117,7 +117,6 @@ func main() {
 					}); err != nil {
 						logger.Warning("Handle DNS Packet", err)
 					}
-
 				}()
 			}
 		}()

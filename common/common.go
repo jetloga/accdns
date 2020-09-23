@@ -30,7 +30,7 @@ var Config = &ConfigStruct{
 	Advanced: &AdvancedConfig{
 		NSLookupTimeoutMs:            10000,
 		RWTimeoutMs:                  6000,
-		MaxReceivedPacketSize:        512,
+		DefaultMaxPacketSize:         512,
 		MaxIdleConnectionPerUpstream: 32,
 		IdleConnectionTimeout:        60,
 	},
@@ -70,4 +70,19 @@ func ParseKVPair(kvPair string) (key, value string, err error) {
 
 func NeedDebug() bool {
 	return Config.Log.LogLevelForFile == "debug" || Config.Log.LogLevelForConsole == "debug"
+}
+
+func IntMin(a int, b int) int {
+	if a < b {
+		return a
+	} else {
+		return b
+	}
+}
+func IntMax(a int, b int) int {
+	if a > b {
+		return a
+	} else {
+		return b
+	}
 }
