@@ -6,6 +6,8 @@ import (
 	"strings"
 )
 
+const StandardMaxDNSPacketSize = 512
+
 var Config = &ConfigStruct{
 	Service: &ServiceConfig{
 		ListenAddr: "127.0.0.1:53",

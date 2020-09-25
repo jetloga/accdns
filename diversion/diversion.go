@@ -19,6 +19,7 @@ func HandlePacket(bytes []byte, respCall func([]byte)) error {
 	if common.NeedDebug() {
 		logger.Debug("Unpack DNS Message", msg.GoString())
 	}
+
 	maxPacketSize := common.Config.Advanced.DefaultMaxPacketSize
 	supportEDNS := false
 	for _, res := range msg.Additionals {
@@ -36,6 +37,7 @@ func HandlePacket(bytes []byte, respCall func([]byte)) error {
 		},
 		Body: &dnsmessage.OPTResource{},
 	}
+
 	numOfQueries := 0
 	for _, question := range msg.Questions {
 		queryType := dnsmessage.Type(0)
@@ -44,8 +46,10 @@ func HandlePacket(bytes []byte, respCall func([]byte)) error {
 		}
 		numOfQueries += len(network.UpstreamsList[queryType])
 	}
+
 	msgChan := make(chan *dnsmessage.Message, numOfQueries)
 	idChan := make(chan int, numOfQueries)
+	retChan := make(chan bool, numOfQueries)
 	receivedList := make([]bool, len(msg.Questions))
 	for id, question := range msg.Questions {
 		if common.NeedDebug() {
@@ -57,29 +61,66 @@ func HandlePacket(bytes []byte, respCall func([]byte)) error {
 		}
 		newMsg := dnsmessage.Message{
 			Header: dnsmessage.Header{
-				ID:    uint16(atomic.AddUint64(&totalQueryCount, 1) % 65536),
-				RCode: dnsmessage.RCodeSuccess,
+				ID:               uint16(atomic.AddUint64(&totalQueryCount, 1) % 65536),
+				OpCode:           msg.Header.OpCode,
+				RCode:            dnsmessage.RCodeSuccess,
+				RecursionDesired: msg.RecursionDesired,
 			},
 			Questions:   make([]dnsmessage.Question, 1),
-			Additionals: make([]dnsmessage.Resource, 1),
+			Additionals: make([]dnsmessage.Resource, 0),
 		}
 		newMsg.Questions[0] = question
-		newMsg.Additionals[0] = ednsRes
+		if maxPacketSize > common.StandardMaxDNSPacketSize {
+			newMsg.Additionals = append(newMsg.Additionals, ednsRes)
+		}
 		for _, upstream := range network.UpstreamsList[queryType] {
-			go requestUpstreamDNS(&newMsg, upstream, msgChan, maxPacketSize, id, idChan)
+			go requestUpstreamDNS(&newMsg, upstream, msgChan, maxPacketSize, id, idChan, retChan)
 		}
 	}
-	msg.Header.RCode = dnsmessage.RCodeServerFailure
-	msg.Header.Response = true
-	msg.Answers = make([]dnsmessage.Resource, 0)
-	msg.Authorities = make([]dnsmessage.Resource, 0)
-	msg.Additionals = make([]dnsmessage.Resource, 0)
+
+	respMsg := dnsmessage.Message{
+		Header: dnsmessage.Header{
+			ID:               msg.Header.ID,
+			Response:         true,
+			OpCode:           msg.Header.OpCode,
+			RecursionDesired: msg.Header.RecursionDesired,
+			RCode:            dnsmessage.RCodeServerFailure,
+		},
+		Questions:   msg.Questions,
+		Answers:     make([]dnsmessage.Resource, 0),
+		Authorities: make([]dnsmessage.Resource, 0),
+		Additionals: make([]dnsmessage.Resource, 0),
+	}
+
 	timer := time.NewTimer(time.Duration(common.Config.Advanced.NSLookupTimeoutMs) * time.Millisecond)
+	retServerCounter := 0
+	appendMsgToResp := func(myMsg *dnsmessage.Message) {
+		if respMsg.Header.RCode != dnsmessage.RCodeSuccess {
+			respMsg.Header.RCode = myMsg.Header.RCode
+		}
+		if myMsg.Header.RecursionAvailable {
+			respMsg.Header.RecursionAvailable = true
+		}
+		if myMsg.Header.Truncated {
+			respMsg.Header.Truncated = true
+		}
+		if myMsg.Header.Authoritative {
+			respMsg.Header.Authoritative = true
+		}
+		respMsg.Answers = append(respMsg.Answers, myMsg.Answers...)
+		respMsg.Authorities = append(respMsg.Authorities, myMsg.Authorities...)
+		for _, res := range myMsg.Additionals {
+			if res.Header.Type != dnsmessage.TypeOPT {
+				respMsg.Additionals = append(respMsg.Additionals, res)
+			}
+		}
+	}
 loop:
 	for {
 		select {
-		case id := <-idChan:
-			receivedList[id] = true
+		case myMsg := <-msgChan:
+			appendMsgToResp(myMsg)
+			receivedList[<-idChan] = true
 			allReceived := true
 			for _, received := range receivedList {
 				if !received {
@@ -90,43 +131,48 @@ loop:
 			if allReceived {
 				break loop
 			}
-		case myMsg := <-msgChan:
-			if msg.Header.RCode != dnsmessage.RCodeSuccess {
-				msg.Header.RCode = myMsg.Header.RCode
-			}
-			msg.Answers = append(msg.Answers, myMsg.Answers...)
-			msg.Authorities = append(msg.Authorities, myMsg.Authorities...)
-			for _, res := range myMsg.Additionals {
-				if res.Header.Type != dnsmessage.TypeOPT {
-					msg.Additionals = append(msg.Additionals, res)
+		case <-retChan:
+			retServerCounter++
+			if retServerCounter >= numOfQueries {
+				for {
+					select {
+					case myMsg := <-msgChan:
+						appendMsgToResp(myMsg)
+					default:
+						break loop
+					}
 				}
 			}
 		case <-timer.C:
 			break loop
 		}
 	}
+
 	if supportEDNS {
-		msg.Additionals = append(msg.Additionals, ednsRes)
+		respMsg.Additionals = append(respMsg.Additionals, ednsRes)
 	}
-	bytes, err := msg.Pack()
+
+	respBytes, err := respMsg.Pack()
 	if err != nil {
 		return err
 	}
 	if common.NeedDebug() {
-		logger.Debug("Pack DNS Message", msg.GoString())
+		logger.Debug("Pack DNS Message", respMsg.GoString())
 	}
-	respCall(bytes)
+	respCall(respBytes)
 	return nil
 }
 
-func requestUpstreamDNS(msg *dnsmessage.Message, upstreamAddr *network.SocketAddr, msgChan chan *dnsmessage.Message, maxPacketSize int, questionId int, idChan chan int) {
+func requestUpstreamDNS(msg *dnsmessage.Message, upstreamAddr *network.SocketAddr, msgChan chan *dnsmessage.Message, maxPacketSize int, questionId int, idChan chan int, retChan chan bool) {
+	defer func() {
+		retChan <- true
+	}()
 	conn, err := network.GlobalConnPool.RequireConn(upstreamAddr)
 	if err != nil {
 		logger.Warning("Dial Socket Connection", err)
 		return
 	}
 	defer func() {
-		idChan <- questionId
 		if err := network.GlobalConnPool.ReleaseConn(conn); err != nil {
 			logger.Warning("Release Connection", err)
 		}
@@ -135,6 +181,9 @@ func requestUpstreamDNS(msg *dnsmessage.Message, upstreamAddr *network.SocketAdd
 	if err != nil {
 		logger.Warning("Pack DNS Packet", err)
 		return
+	}
+	if common.NeedDebug() {
+		logger.Debug("Pack DNS Message", msg.GoString())
 	}
 	if _, err := conn.WritePacket(bytes); err != nil {
 		logger.Warning("Write DNS Packet", err)
@@ -154,4 +203,5 @@ func requestUpstreamDNS(msg *dnsmessage.Message, upstreamAddr *network.SocketAdd
 		logger.Debug("Unpack DNS Message", receivedMsg.GoString())
 	}
 	msgChan <- receivedMsg
+	idChan <- questionId
 }

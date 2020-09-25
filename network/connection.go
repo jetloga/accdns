@@ -95,6 +95,9 @@ func (conn *SocketConn) SetDeadline(t time.Time) (err error) {
 }
 
 func (conn *SocketConn) IsDead() bool {
+	if conn.TCPConn == nil && conn.UDPConn == nil {
+		return true
+	}
 	if conn.deadTime != 0 {
 		return time.Now().UnixNano() > conn.deadTime
 	} else {
