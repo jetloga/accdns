@@ -24,10 +24,9 @@ var Config = &ConfigStruct{
 		CustomRecordUpstream: make([]string, 0),
 	},
 	Cache: &CacheConfig{
-		EnableCache:       true,
-		MaxTTL:            3600,
-		MinTTL:            10,
-		MinLookupInterval: 10,
+		EnableCache: true,
+		MaxTTL:      3600,
+		MinTTL:      10,
 	},
 	Log: &LogConfig{
 		LogFilePath:        "",

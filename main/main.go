@@ -54,6 +54,9 @@ func main() {
 		go func() {
 			defer waitGroup.Done()
 			for true {
+				if common.NeedDebug() {
+					logger.Debug("Listen UDP Loop Start", "ready")
+				}
 				bufferBytes := make([]byte, common.Config.Advanced.DefaultMaxPacketSize)
 				n, addr, err := listener.ReadFromUDP(bufferBytes)
 				if err != nil {
@@ -94,6 +97,9 @@ func main() {
 		go func() {
 			defer waitGroup.Done()
 			for true {
+				if common.NeedDebug() {
+					logger.Debug("Listen TCP Loop Start", "ready")
+				}
 				conn, err := listener.AcceptTCP()
 				if err != nil {
 					logger.Error("Establish TCP Connection", err)
@@ -129,6 +135,6 @@ func main() {
 			}
 		}()
 	}
-	logger.Alert("General", "DnsDiversion Started")
+	logger.Alert("General", "AccDNS Started")
 	waitGroup.Wait()
 }

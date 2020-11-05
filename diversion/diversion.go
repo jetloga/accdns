@@ -82,7 +82,7 @@ func HandlePacket(bytes []byte, respCall func([]byte), dnsCache *cache.Cache) er
 				var receivedMsg *dnsmessage.Message
 				var err error
 				if dnsCache != nil {
-					dnsCache.QueryAndUpdate(&question, func() (*dnsmessage.Message, error) {
+					receivedMsg, err = dnsCache.QueryAndUpdate(&question, func() (*dnsmessage.Message, error) {
 						return requestUpstreamDNS(&newMsg, upstream, maxPacketSize)
 					})
 				} else {

@@ -65,13 +65,16 @@ func (dnsCache *Cache) QueryAndUpdate(question *dnsmessage.Question, updateFunc 
 		dnsCache.cacheMap.Store(key, item)
 	}
 	item.Mutex.Lock()
+	defer item.Mutex.Unlock()
 	if time.Now().UnixNano() < item.UpdateAt+(time.Duration(item.TTL)*time.Second).Nanoseconds() {
 		if common.NeedDebug() {
 			logger.Debug("Cache Hit", question.Name, question.Class, question.Type)
 		}
 		return item.Msg, nil
 	}
-	defer item.Mutex.Unlock()
+	if common.NeedDebug() {
+		logger.Debug("Cache Miss", question.Name, question.Class, question.Type)
+	}
 	msg, err := updateFunc()
 	if err != nil {
 		return nil, err

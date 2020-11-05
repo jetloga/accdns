@@ -40,8 +40,7 @@ type AdvancedConfig struct {
 }
 
 type CacheConfig struct {
-	EnableCache       bool
-	MaxTTL            int
-	MinTTL            int
-	MinLookupInterval int
+	EnableCache bool
+	MaxTTL      int
+	MinTTL      int
 }
