@@ -17,7 +17,6 @@ type Key struct {
 	Type  dnsmessage.Type
 }
 type Item struct {
-	Mutex    *sync.Mutex
 	UpdateAt int64
 	TTL      int
 	Msg      *dnsmessage.Message

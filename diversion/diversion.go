@@ -75,7 +75,7 @@ func HandlePacket(bytes []byte, respCall func([]byte), dnsCache *cache.Cache) er
 			newMsg.Additionals = append(newMsg.Additionals, ednsRes)
 		}
 		for _, upstream := range network.UpstreamsList[queryType] {
-			go func() {
+			go func(upstream *network.SocketAddr) {
 				defer func() {
 					retChan <- true
 				}()
@@ -84,7 +84,7 @@ func HandlePacket(bytes []byte, respCall func([]byte), dnsCache *cache.Cache) er
 				if dnsCache != nil {
 					receivedMsg, err = dnsCache.QueryAndUpdate(&question, func() (*dnsmessage.Message, error) {
 						return requestUpstreamDNS(&newMsg, upstream, maxPacketSize)
-					})
+					}, len(network.UpstreamsList[queryType]))
 				} else {
 					receivedMsg, err = requestUpstreamDNS(&newMsg, upstream, maxPacketSize)
 				}
@@ -92,9 +92,9 @@ func HandlePacket(bytes []byte, respCall func([]byte), dnsCache *cache.Cache) er
 					return
 				}
 
-				msgChan <- receivedMsg
 				idChan <- id
-			}()
+				msgChan <- receivedMsg
+			}(upstream)
 		}
 	}
 
@@ -166,6 +166,7 @@ loop:
 		case <-timer.C:
 			break loop
 		}
+
 	}
 
 	if supportEDNS {
@@ -184,6 +185,9 @@ loop:
 }
 
 func requestUpstreamDNS(msg *dnsmessage.Message, upstreamAddr *network.SocketAddr, maxPacketSize int) (*dnsmessage.Message, error) {
+	if common.NeedDebug() {
+		logger.Debug("Request Upstream", upstreamAddr)
+	}
 	conn, err := network.GlobalConnPool.RequireConn(upstreamAddr)
 	if err != nil {
 		logger.Warning("Dial Socket Connection", err)
