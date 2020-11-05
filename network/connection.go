@@ -1,7 +1,7 @@
 package network
 
 import (
-	"DnsDiversion/common"
+	"accdns/common"
 	"errors"
 	"net"
 	"time"

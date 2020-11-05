@@ -1,9 +1,10 @@
 package diversion
 
 import (
-	"DnsDiversion/common"
-	"DnsDiversion/logger"
-	"DnsDiversion/network"
+	"accdns/cache"
+	"accdns/common"
+	"accdns/logger"
+	"accdns/network"
 	"golang.org/x/net/dns/dnsmessage"
 	"sync/atomic"
 	"time"
@@ -11,7 +12,7 @@ import (
 
 var totalQueryCount uint64
 
-func HandlePacket(bytes []byte, respCall func([]byte)) error {
+func HandlePacket(bytes []byte, respCall func([]byte), dnsCache *cache.Cache) error {
 	msg := dnsmessage.Message{}
 	if err := msg.Unpack(bytes); err != nil {
 		return err
@@ -74,7 +75,26 @@ func HandlePacket(bytes []byte, respCall func([]byte)) error {
 			newMsg.Additionals = append(newMsg.Additionals, ednsRes)
 		}
 		for _, upstream := range network.UpstreamsList[queryType] {
-			go requestUpstreamDNS(&newMsg, upstream, msgChan, maxPacketSize, id, idChan, retChan)
+			go func() {
+				defer func() {
+					retChan <- true
+				}()
+				var receivedMsg *dnsmessage.Message
+				var err error
+				if dnsCache != nil {
+					dnsCache.QueryAndUpdate(&question, func() (*dnsmessage.Message, error) {
+						return requestUpstreamDNS(&newMsg, upstream, maxPacketSize)
+					})
+				} else {
+					receivedMsg, err = requestUpstreamDNS(&newMsg, upstream, maxPacketSize)
+				}
+				if err != nil {
+					return
+				}
+
+				msgChan <- receivedMsg
+				idChan <- id
+			}()
 		}
 	}
 
@@ -163,14 +183,11 @@ loop:
 	return nil
 }
 
-func requestUpstreamDNS(msg *dnsmessage.Message, upstreamAddr *network.SocketAddr, msgChan chan *dnsmessage.Message, maxPacketSize int, questionId int, idChan chan int, retChan chan bool) {
-	defer func() {
-		retChan <- true
-	}()
+func requestUpstreamDNS(msg *dnsmessage.Message, upstreamAddr *network.SocketAddr, maxPacketSize int) (*dnsmessage.Message, error) {
 	conn, err := network.GlobalConnPool.RequireConn(upstreamAddr)
 	if err != nil {
 		logger.Warning("Dial Socket Connection", err)
-		return
+		return nil, err
 	}
 	defer func() {
 		if err := network.GlobalConnPool.ReleaseConn(conn); err != nil {
@@ -180,28 +197,27 @@ func requestUpstreamDNS(msg *dnsmessage.Message, upstreamAddr *network.SocketAdd
 	bytes, err := msg.Pack()
 	if err != nil {
 		logger.Warning("Pack DNS Packet", err)
-		return
+		return nil, err
 	}
 	if common.NeedDebug() {
 		logger.Debug("Pack DNS Message", msg.GoString())
 	}
 	if _, err := conn.WritePacket(bytes); err != nil {
 		logger.Warning("Write DNS Packet", err)
-		return
+		return nil, err
 	}
 	readBytes, _, err := conn.ReadPacket(maxPacketSize)
 	if err != nil {
 		logger.Warning("Read DNS Packet", err)
-		return
+		return nil, err
 	}
 	receivedMsg := &dnsmessage.Message{}
 	if err := receivedMsg.Unpack(readBytes); err != nil {
 		logger.Warning("Unpack DNS Packet", err)
-		return
+		return nil, err
 	}
 	if common.NeedDebug() {
 		logger.Debug("Unpack DNS Message", receivedMsg.GoString())
 	}
-	msgChan <- receivedMsg
-	idChan <- questionId
+	return receivedMsg, err
 }

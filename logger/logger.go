@@ -1,7 +1,7 @@
 package logger
 
 import (
-	"DnsDiversion/common"
+	"accdns/common"
 	"fmt"
 	"github.com/phachon/go-logger"
 	"runtime"

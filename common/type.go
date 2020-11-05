@@ -3,6 +3,7 @@ package common
 type ConfigStruct struct {
 	Service  *ServiceConfig
 	Upstream *UpstreamConfig
+	Cache    *CacheConfig
 	Log      *LogConfig
 	Advanced *AdvancedConfig
 }
@@ -36,4 +37,11 @@ type AdvancedConfig struct {
 	DefaultMaxPacketSize         int
 	IdleConnectionTimeout        int
 	MaxIdleConnectionPerUpstream int
+}
+
+type CacheConfig struct {
+	EnableCache       bool
+	MaxTTL            int
+	MinTTL            int
+	MinLookupInterval int
 }

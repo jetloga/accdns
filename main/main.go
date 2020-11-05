@@ -1,10 +1,11 @@
 package main
 
 import (
-	"DnsDiversion/common"
-	"DnsDiversion/diversion"
-	"DnsDiversion/logger"
-	"DnsDiversion/network"
+	"accdns/cache"
+	"accdns/common"
+	"accdns/diversion"
+	"accdns/logger"
+	"accdns/network"
 	"flag"
 	"net"
 	"sync"
@@ -34,6 +35,13 @@ func main() {
 		return
 	}
 	waitGroup := sync.WaitGroup{}
+	var dnsCache *cache.Cache
+	if common.Config.Cache.EnableCache {
+		dnsCache = &cache.Cache{
+			MaxTTL: common.Config.Cache.MaxTTL,
+			MinTTL: common.Config.Cache.MinTTL,
+		}
+	}
 	if common.Config.Service.ListenUDP {
 		udpAddr, err := net.ResolveUDPAddr("udp", common.Config.Service.ListenAddr)
 		listener, err := net.ListenUDP("udp", udpAddr)
@@ -66,7 +74,7 @@ func main() {
 							logger.Debug("Write UDP Packet", respBytes)
 							logger.Debug("Write UDP Packet", "Write", n, "bytes to", addr)
 						}
-					}); err != nil {
+					}, dnsCache); err != nil {
 						logger.Warning("Handle DNS Packet", addr, err)
 					}
 				}()
@@ -114,7 +122,7 @@ func main() {
 							logger.Debug("Write DNS Packet to TCP Connection", respBytes)
 							logger.Debug("Write DNS Packet to TCP Connection", "Write", n, "bytes to", conn.RemoteAddr())
 						}
-					}); err != nil {
+					}, dnsCache); err != nil {
 						logger.Warning("Handle DNS Packet", err)
 					}
 				}()

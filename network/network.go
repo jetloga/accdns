@@ -1,8 +1,8 @@
 package network
 
 import (
-	"DnsDiversion/common"
-	"DnsDiversion/logger"
+	"accdns/common"
+	"accdns/logger"
 	"bytes"
 	"encoding/binary"
 	"errors"
