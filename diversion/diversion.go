@@ -5,6 +5,7 @@ import (
 	"accdns/common"
 	"accdns/logger"
 	"accdns/network"
+	"errors"
 	"golang.org/x/net/dns/dnsmessage"
 	"sync/atomic"
 	"time"
@@ -21,12 +22,12 @@ func HandlePacket(bytes []byte, respCall func([]byte), dnsCache *cache.Cache) er
 		logger.Debug("Unpack DNS Message", msg.GoString())
 	}
 
-	maxPacketSize := common.Config.Advanced.DefaultMaxPacketSize
+	maxPacketSize := common.StandardMaxDNSPacketSize
 	supportEDNS := false
 	for _, res := range msg.Additionals {
 		if res.Header.Type == dnsmessage.TypeOPT {
 			supportEDNS = true
-			maxPacketSize = common.IntMax(int(res.Header.Class), 512)
+			maxPacketSize = common.IntMax(int(res.Header.Class), common.StandardMaxDNSPacketSize)
 			break
 		}
 	}
@@ -82,9 +83,7 @@ func HandlePacket(bytes []byte, respCall func([]byte), dnsCache *cache.Cache) er
 				var receivedMsg *dnsmessage.Message
 				var err error
 				if dnsCache != nil {
-					receivedMsg, err = dnsCache.QueryAndUpdate(&question, func() (*dnsmessage.Message, error) {
-						return requestUpstreamDNS(&newMsg, upstream, maxPacketSize)
-					}, len(network.UpstreamsList[queryType]))
+					receivedMsg, err = dnsCache.QueryAndUpdate(&newMsg, upstream, maxPacketSize, requestUpstreamDNS)
 				} else {
 					receivedMsg, err = requestUpstreamDNS(&newMsg, upstream, maxPacketSize)
 				}
@@ -188,16 +187,14 @@ func requestUpstreamDNS(msg *dnsmessage.Message, upstreamAddr *network.SocketAdd
 	if common.NeedDebug() {
 		logger.Debug("Request Upstream", upstreamAddr)
 	}
-	conn, err := network.GlobalConnPool.RequireConn(upstreamAddr)
+	conn, err := network.EstablishNewSocketConn(upstreamAddr)
+	defer func() {
+		_ = conn.Close()
+	}()
 	if err != nil {
 		logger.Warning("Dial Socket Connection", err)
 		return nil, err
 	}
-	defer func() {
-		if err := network.GlobalConnPool.ReleaseConn(conn); err != nil {
-			logger.Warning("Release Connection", err)
-		}
-	}()
 	bytes, err := msg.Pack()
 	if err != nil {
 		logger.Warning("Pack DNS Packet", err)
@@ -223,5 +220,10 @@ func requestUpstreamDNS(msg *dnsmessage.Message, upstreamAddr *network.SocketAdd
 	if common.NeedDebug() {
 		logger.Debug("Unpack DNS Message", receivedMsg.GoString())
 	}
-	return receivedMsg, err
+	if msg.ID != receivedMsg.ID {
+		err = errors.New("response id is not match")
+		logger.Warning("Check DNS Packet", err)
+		return nil, err
+	}
+	return receivedMsg, nil
 }

@@ -10,12 +10,6 @@ type Cache struct {
 	MaxTTL   int
 	MinTTL   int
 }
-
-type Key struct {
-	Name  dnsmessage.Name
-	Class dnsmessage.Class
-	Type  dnsmessage.Type
-}
 type Item struct {
 	UpdateAt int64
 	TTL      int

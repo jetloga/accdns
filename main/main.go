@@ -57,7 +57,7 @@ func main() {
 				if common.NeedDebug() {
 					logger.Debug("Listen UDP Loop Start", "ready")
 				}
-				bufferBytes := make([]byte, common.Config.Advanced.DefaultMaxPacketSize)
+				bufferBytes := make([]byte, common.Config.Advanced.MaxReceivedPacketSize)
 				n, addr, err := listener.ReadFromUDP(bufferBytes)
 				if err != nil {
 					logger.Warning("Read UDP Packet", addr, err)
@@ -68,7 +68,7 @@ func main() {
 					logger.Debug("Read UDP Packet", "Read", n, "bytes from", addr)
 				}
 				go func() {
-					if err = diversion.HandlePacket(bufferBytes, func(respBytes []byte) {
+					if err := diversion.HandlePacket(bufferBytes, func(respBytes []byte) {
 						n, err := listener.WriteToUDP(respBytes, addr)
 						if err != nil {
 							logger.Warning("Write UDP Packet", addr, err)

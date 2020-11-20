@@ -14,7 +14,6 @@ import (
 )
 
 var UpstreamsList [256][]*SocketAddr
-var GlobalConnPool *ConnPool
 
 func Init() error {
 	for typeCode := range UpstreamsList {
@@ -82,7 +81,6 @@ func Init() error {
 		default:
 			UpstreamsList[typeCode] = make([]*SocketAddr, 0)
 		}
-
 	}
 	for _, kvPair := range common.Config.Upstream.CustomRecordUpstream {
 		typeCodeStr, addr, err := common.ParseKVPair(kvPair)
@@ -102,7 +100,7 @@ func Init() error {
 		}
 		UpstreamsList[typeCode] = append(UpstreamsList[typeCode], socketAddr)
 	}
-	GlobalConnPool = NewConnPool()
+
 	return nil
 }
 func ParseNewSocketAddr(addrStr string) (*SocketAddr, error) {

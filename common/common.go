@@ -35,11 +35,10 @@ var Config = &ConfigStruct{
 		LogLevelForConsole: "info",
 	},
 	Advanced: &AdvancedConfig{
-		NSLookupTimeoutMs:            10000,
-		RWTimeoutMs:                  6000,
-		DefaultMaxPacketSize:         512,
-		MaxIdleConnectionPerUpstream: 32,
-		IdleConnectionTimeout:        60,
+		NSLookupTimeoutMs:     10000,
+		RWTimeoutMs:           6000,
+		MaxReceivedPacketSize: 4096,
+		ConnectionTimeout:     60,
 	},
 }
 
