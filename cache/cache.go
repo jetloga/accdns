@@ -45,7 +45,7 @@ func (dnsCache *Cache) UpdateItem(item *Item, msg *dnsmessage.Message) {
 	}
 }
 
-func (dnsCache *Cache) QueryAndUpdate(queryMsg *dnsmessage.Message, upstream *network.SocketAddr, maxPacketSize int, updateFunc func(*dnsmessage.Message, *network.SocketAddr, int) (*dnsmessage.Message, error)) (*dnsmessage.Message, error) {
+func (dnsCache *Cache) QueryAndUpdate(queryMsg *dnsmessage.Message, upstream *network.SocketAddr, updateFunc func(*dnsmessage.Message, *network.SocketAddr) (*dnsmessage.Message, error)) (*dnsmessage.Message, error) {
 	if queryMsg == nil || len(queryMsg.Questions) < 1 {
 		return nil, errors.New("wrong dns message")
 	}
@@ -71,7 +71,7 @@ func (dnsCache *Cache) QueryAndUpdate(queryMsg *dnsmessage.Message, upstream *ne
 	if common.NeedDebug() {
 		logger.Debug("Cache Miss", question.Name, question.Class, question.Type)
 	}
-	msg, err := updateFunc(queryMsg, upstream, maxPacketSize)
+	msg, err := updateFunc(queryMsg, upstream)
 	if err != nil {
 		return nil, err
 	}

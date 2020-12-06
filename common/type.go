@@ -36,6 +36,7 @@ type AdvancedConfig struct {
 	RWTimeoutMs           int
 	MaxReceivedPacketSize int
 	ConnectionTimeout     int
+	NetworkFailedRetries  int
 }
 
 type CacheConfig struct {

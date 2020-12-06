@@ -83,9 +83,9 @@ func HandlePacket(bytes []byte, respCall func([]byte), dnsCache *cache.Cache) er
 				var receivedMsg *dnsmessage.Message
 				var err error
 				if dnsCache != nil {
-					receivedMsg, err = dnsCache.QueryAndUpdate(&newMsg, upstream, maxPacketSize, requestUpstreamDNS)
+					receivedMsg, err = dnsCache.QueryAndUpdate(&newMsg, upstream, requestUpstreamDNS)
 				} else {
-					receivedMsg, err = requestUpstreamDNS(&newMsg, upstream, maxPacketSize)
+					receivedMsg, err = requestUpstreamDNS(&newMsg, upstream)
 				}
 				if err != nil {
 					return
@@ -139,7 +139,9 @@ loop:
 		select {
 		case myMsg := <-msgChan:
 			appendMsgToResp(myMsg)
-			receivedList[<-idChan] = true
+			if myMsg.RCode == dnsmessage.RCodeSuccess {
+				receivedList[<-idChan] = true
+			}
 			allReceived := true
 			for _, received := range receivedList {
 				if !received {
@@ -183,17 +185,10 @@ loop:
 	return nil
 }
 
-func requestUpstreamDNS(msg *dnsmessage.Message, upstreamAddr *network.SocketAddr, maxPacketSize int) (*dnsmessage.Message, error) {
+func requestUpstreamDNS(msg *dnsmessage.Message, upstreamAddr *network.SocketAddr) (*dnsmessage.Message, error) {
+
 	if common.NeedDebug() {
 		logger.Debug("Request Upstream", upstreamAddr)
-	}
-	conn, err := network.EstablishNewSocketConn(upstreamAddr)
-	defer func() {
-		_ = conn.Close()
-	}()
-	if err != nil {
-		logger.Warning("Dial Socket Connection", err)
-		return nil, err
 	}
 	bytes, err := msg.Pack()
 	if err != nil {
@@ -203,14 +198,33 @@ func requestUpstreamDNS(msg *dnsmessage.Message, upstreamAddr *network.SocketAdd
 	if common.NeedDebug() {
 		logger.Debug("Pack DNS Message", msg.GoString())
 	}
-	if _, err := conn.WritePacket(bytes); err != nil {
-		logger.Warning("Write DNS Packet", err)
-		return nil, err
+	var conn *network.SocketConn
+	var readBytes []byte
+	var networkErr error
+	for i := 0; i < common.Config.Advanced.NetworkFailedRetries; i++ {
+		func() {
+			conn, networkErr = network.EstablishNewSocketConn(upstreamAddr)
+			defer func() {
+				_ = conn.Close()
+			}()
+			if networkErr != nil {
+				logger.Warning("Dial Socket Connection", networkErr)
+				return
+			}
+			_, networkErr = conn.WritePacket(bytes)
+			if networkErr != nil {
+				logger.Warning("Write DNS Packet", networkErr)
+				return
+			}
+			readBytes, _, networkErr = conn.ReadPacket(common.Config.Advanced.MaxReceivedPacketSize)
+			if networkErr != nil {
+				logger.Warning("Read DNS Packet", networkErr)
+				return
+			}
+		}()
 	}
-	readBytes, _, err := conn.ReadPacket(maxPacketSize)
-	if err != nil {
-		logger.Warning("Read DNS Packet", err)
-		return nil, err
+	if networkErr != nil {
+		return nil, networkErr
 	}
 	receivedMsg := &dnsmessage.Message{}
 	if err := receivedMsg.Unpack(readBytes); err != nil {

@@ -10,7 +10,7 @@ const StandardMaxDNSPacketSize = 512
 
 var Config = &ConfigStruct{
 	Service: &ServiceConfig{
-		ListenAddr: "127.0.0.1:53",
+		ListenAddr: "[::]:53",
 		ListenUDP:  true,
 		ListenTCP:  false,
 	},
@@ -29,16 +29,17 @@ var Config = &ConfigStruct{
 		MinTTL:      10,
 	},
 	Log: &LogConfig{
-		LogFilePath:        "",
+		LogFilePath:        "accdns.log",
 		LogFileMaxSizeKB:   16 * 1024,
 		LogLevelForFile:    "info",
 		LogLevelForConsole: "info",
 	},
 	Advanced: &AdvancedConfig{
-		NSLookupTimeoutMs:     10000,
-		RWTimeoutMs:           6000,
+		NSLookupTimeoutMs:     20000,
+		RWTimeoutMs:           8000,
 		MaxReceivedPacketSize: 4096,
 		ConnectionTimeout:     60,
+		NetworkFailedRetries:  3,
 	},
 }
 
