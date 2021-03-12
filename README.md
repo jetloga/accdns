@@ -2,12 +2,12 @@
 A DNS forwarder that forwards according to the type of DNS message
 
 ### Usage
--c string
-Config File Path
--n string
-New Config File Path
+-c path &nbsp;&nbsp;&nbsp;&nbsp; Specify config file path
+
+-n path &nbsp;&nbsp;&nbsp;&nbsp; Create config file template
 
 ### Configuration File
+```ini
 [Service]
 ; Listen Address (Example: [::]:53)
 ListenAddr = [::]:53
@@ -53,4 +53,4 @@ RWTimeoutMs           = 8000
 MaxReceivedPacketSize = 4096
 ConnectionTimeout     = 60
 NetworkFailedRetries  = 3
-
+```
